@@ -42,6 +42,10 @@ on:
         required: false
         type: boolean
         default: false
+      task_id:
+        description: '任务ID (可选，用于webhook回调时识别任务)'
+        required: false
+        type: string
   
   # 支持API触发 (repository_dispatch)
   repository_dispatch:
@@ -88,6 +92,7 @@ jobs:
           echo "webhook_url=${{ inputs.webhook_url }}" >> $GITHUB_OUTPUT
           echo "get_comments=${{ inputs.get_comments }}" >> $GITHUB_OUTPUT
           echo "no_delay=${{ inputs.no_delay }}" >> $GITHUB_OUTPUT
+          echo "task_id=${{ inputs.task_id }}" >> $GITHUB_OUTPUT
         elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
           # API触发，使用 client_payload
           echo "query=${{ github.event.client_payload.query }}" >> $GITHUB_OUTPUT
@@ -97,6 +102,7 @@ jobs:
           echo "webhook_url=${{ github.event.client_payload.webhook_url }}" >> $GITHUB_OUTPUT
           echo "get_comments=${{ github.event.client_payload.get_comments || false }}" >> $GITHUB_OUTPUT
           echo "no_delay=${{ github.event.client_payload.no_delay || false }}" >> $GITHUB_OUTPUT
+          echo "task_id=${{ github.event.client_payload.task_id }}" >> $GITHUB_OUTPUT
         fi
         
         # 生成运行ID
@@ -111,6 +117,7 @@ jobs:
         echo "⏱️ 禁用延迟: ${{ steps.parse-params.outputs.no_delay }}"
         echo "🆔 运行ID: ${{ steps.parse-params.outputs.run_id }}"
         echo "🌐 Webhook URL: ${{ steps.parse-params.outputs.webhook_url }}"
+        echo "🎯 任务ID: ${{ steps.parse-params.outputs.task_id }}"
         
     - name: 运行爬虫
       run: |
@@ -124,6 +131,11 @@ jobs:
         # 添加可选的 webhook URL
         if [ -n "${{ steps.parse-params.outputs.webhook_url }}" ]; then
           ARGS="$ARGS --webhook-url '${{ steps.parse-params.outputs.webhook_url }}'"
+        fi
+        
+        # 添加可选的 task_id
+        if [ -n "${{ steps.parse-params.outputs.task_id }}" ]; then
+          ARGS="$ARGS --task-id '${{ steps.parse-params.outputs.task_id }}'"
         fi
         
         # 添加可选参数

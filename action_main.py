@@ -226,7 +226,8 @@ def search_and_process_notes(
     webhook_url: str = None,
     get_comments: bool = False,
     no_delay: bool = False,
-    run_id: str = None
+    run_id: str = None,
+    task_id: str = None
 ):
     """搜索笔记并处理数据，输出符合webhook schema的格式"""
     start_time = datetime.now()
@@ -248,6 +249,8 @@ def search_and_process_notes(
                     "notes": []
                 }
             }
+            if task_id:
+                start_webhook_data["task_id"] = task_id
             send_webhook(webhook_url, start_webhook_data)
         
         xhs_apis = XHS_Apis()
@@ -282,6 +285,8 @@ def search_and_process_notes(
                     "notes": []
                 }
             }
+            if task_id:
+                error_data["task_id"] = task_id
             
             if webhook_url:
                 send_webhook(webhook_url, error_data)
@@ -308,6 +313,8 @@ def search_and_process_notes(
                     "notes": []
                 }
             }
+            if task_id:
+                warning_data["task_id"] = task_id
             
             if webhook_url:
                 send_webhook(webhook_url, warning_data)
@@ -346,6 +353,8 @@ def search_and_process_notes(
                             "notes": processed_notes
                         }
                     }
+                    if task_id:
+                        progress_data["task_id"] = task_id
                     send_webhook(webhook_url, progress_data)
                 
                 # 转换为符合schema的笔记数据
@@ -445,6 +454,9 @@ def search_and_process_notes(
             "data": search_result_data
         }
         
+        if task_id:
+            final_webhook_data["task_id"] = task_id
+        
         # 如果有错误，添加错误信息
         if errors:
             final_webhook_data["errors"] = errors
@@ -494,6 +506,8 @@ def search_and_process_notes(
                 },
                 "errors": [error_msg]
             }
+            if task_id:
+                error_data["task_id"] = task_id
             send_webhook(webhook_url, error_data)
         
         return False, error_msg, []
@@ -512,6 +526,7 @@ def main():
     parser.add_argument('--no-delay', action='store_true', help='禁用随机延迟 (默认: 启用延迟)')
     parser.add_argument('--debug', action='store_true', help='启用调试模式')
     parser.add_argument('--run-id', default=None, help='运行ID (可选，用于追踪)')
+    parser.add_argument('--task-id', default=None, help='任务ID (可选，用于webhook回调时识别任务)')
     
     args = parser.parse_args()
     
@@ -546,7 +561,8 @@ def main():
         webhook_url=args.webhook_url,
         get_comments=args.get_comments,
         no_delay=args.no_delay,
-        run_id=run_id
+        run_id=run_id,
+        task_id=args.task_id
     )
     
     if success:
