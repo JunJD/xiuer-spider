@@ -3,6 +3,7 @@
         "dotenv",
         "loguru",
         "pytest",
-        "xiuer"
+        "xiuer",
+        "xsec"
     ]
 }
