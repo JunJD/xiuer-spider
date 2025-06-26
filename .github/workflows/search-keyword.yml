@@ -1,0 +1,75 @@
+name: 小红书关键词搜索爬虫
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: '搜索关键词'
+        required: true
+        type: string
+      num:
+        description: '爬取数量'
+        required: false
+        type: number
+        default: 10
+      sort_type:
+        description: '排序方式 (0-综合排序, 1-最新, 2-最多点赞, 3-最多评论, 4-最多收藏)'
+        required: false
+        type: choice
+        options:
+        - '0'
+        - '1' 
+        - '2'
+        - '3'
+        - '4'
+        default: '0'
+      cookies:
+        description: '小红书 Cookies'
+        required: true
+        type: string
+      webhook_url:
+        description: 'Webhook URL (用于接收爬取结果)'
+        required: true
+        type: string
+
+jobs:
+  search-xhs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置 Python 环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: 安装 Node.js (for execjs)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: 安装 Python 依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: 运行爬虫
+      run: |
+        python action_main.py \
+          --query "${{ inputs.query }}" \
+          --num ${{ inputs.num }} \
+          --sort-type ${{ inputs.sort_type }} \
+          --cookies "${{ inputs.cookies }}" \
+          --webhook-url "${{ inputs.webhook_url }}"
+      env:
+        PYTHONPATH: ${{ github.workspace }}
+        
+    - name: 上传日志 (如果失败)
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: spider-logs
+        path: logs/
+        retention-days: 7 
