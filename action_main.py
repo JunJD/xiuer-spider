@@ -12,6 +12,8 @@ import sys
 import traceback
 import requests
 import uuid
+import time
+import random
 from datetime import datetime
 from loguru import logger
 from apis.xhs_pc_apis import XHS_Apis
@@ -22,6 +24,41 @@ from xhs_utils.data_util import handle_note_info, handle_comment_info
 def generate_run_id():
     """生成唯一的运行ID"""
     return f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
+
+def random_delay(min_seconds: float = 1.0, max_seconds: float = 3.0, note_index: int = None):
+    """
+    添加随机延迟，模拟真实用户行为
+    
+    Args:
+        min_seconds: 最小延迟秒数
+        max_seconds: 最大延迟秒数  
+        note_index: 笔记索引，用于调整延迟策略
+    """
+    # 基础随机延迟
+    base_delay = random.uniform(min_seconds, max_seconds)
+    
+    # 根据笔记索引调整延迟策略
+    if note_index is not None:
+        if note_index == 1:
+            # 第一个笔记稍微快一点，模拟刚开始浏览的状态
+            base_delay *= random.uniform(0.5, 0.8)
+        elif note_index % 5 == 0:
+            # 每5个笔记加一个稍长的停顿，模拟用户思考或休息
+            base_delay *= random.uniform(1.5, 2.5)
+        elif note_index % 3 == 0:
+            # 每3个笔记稍微停顿一下
+            base_delay *= random.uniform(1.2, 1.8)
+    
+    # 添加一些随机性：有10%的概率会有更长的延迟
+    if random.random() < 0.1:
+        base_delay *= random.uniform(2.0, 4.0)
+        logger.info(f"⏱️  随机长延迟: {base_delay:.2f}秒 (模拟用户停顿思考)")
+    else:
+        logger.debug(f"⏱️  延迟: {base_delay:.2f}秒")
+    
+    time.sleep(base_delay)
+    return base_delay
 
 
 def send_webhook(webhook_url: str, data: dict):
@@ -188,6 +225,7 @@ def search_and_process_notes(
     sort_type: int,
     webhook_url: str = None,
     get_comments: bool = False,
+    no_delay: bool = False,
     run_id: str = None
 ):
     """搜索笔记并处理数据，输出符合webhook schema的格式"""
@@ -283,6 +321,14 @@ def search_and_process_notes(
         
         for i, note in enumerate(notes[:num], 1):
             try:
+                # 添加随机延迟，模拟真实用户浏览行为
+                if not no_delay and i > 1:  # 第一个笔记不延迟
+                    delay_time = random_delay(
+                        min_seconds=1.0, 
+                        max_seconds=3.5, 
+                        note_index=i
+                    )
+                
                 logger.info(f"📝 处理第 {i}/{min(num, len(notes))} 条笔记: {note.get('id', 'unknown')}")
                 
                 # 发送进度状态
@@ -311,6 +357,9 @@ def search_and_process_notes(
                 # 4. 获取评论（如果需要）
                 if get_comments:
                     try:
+                        # 获取评论前稍微延迟一下，模拟用户浏览到评论的时间
+                        if not no_delay:
+                            comment_delay = random_delay(0.5, 1.5)
                         logger.info(f"💬 获取笔记评论: {note.get('id')}")
                         
                         comment_success, comment_msg, comments = xhs_apis.get_note_all_out_comment(
@@ -458,8 +507,9 @@ def main():
     parser.add_argument('--sort-type', type=int, default=0, 
                        help='排序方式: 0-综合排序, 1-最新, 2-最多点赞, 3-最多评论, 4-最多收藏 (默认: 0)')
     parser.add_argument('--cookies', required=True, help='小红书 cookies')
-    parser.add_argument('--webhook-url', default=None, help='Webhook URL (可选)')
+    parser.add_argument('--webhook-url', default=None, help='Webhook URL (可选，用于接收爬取结果)')
     parser.add_argument('--get-comments', action='store_true', help='是否获取评论 (默认: 否)')
+    parser.add_argument('--no-delay', action='store_true', help='禁用随机延迟 (默认: 启用延迟)')
     parser.add_argument('--debug', action='store_true', help='启用调试模式')
     parser.add_argument('--run-id', default=None, help='运行ID (可选，用于追踪)')
     
@@ -477,6 +527,11 @@ def main():
     logger.info(f"运行ID: {run_id}")
     logger.info(f"参数: 关键词='{args.query}', 数量={args.num}, 排序={args.sort_type}, 获取评论={args.get_comments}")
     
+    if args.no_delay:
+        logger.info("⚡ 已禁用随机延迟，将快速执行")
+    else:
+        logger.info("⏱️  已启用随机延迟，模拟真实用户行为")
+    
     if args.webhook_url:
         logger.info(f"Webhook URL: {args.webhook_url}")
     else:
@@ -490,6 +545,7 @@ def main():
         sort_type=args.sort_type,
         webhook_url=args.webhook_url,
         get_comments=args.get_comments,
+        no_delay=args.no_delay,
         run_id=run_id
     )
     

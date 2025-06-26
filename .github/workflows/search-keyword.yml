@@ -1,6 +1,7 @@
 name: 小红书关键词搜索爬虫
 
 on:
+  # 支持手动触发
   workflow_dispatch:
     inputs:
       query:
@@ -28,9 +29,23 @@ on:
         required: true
         type: string
       webhook_url:
-        description: 'Webhook URL (用于接收爬取结果)'
-        required: true
+        description: 'Webhook URL (用于接收爬取结果，可选)'
+        required: false
         type: string
+      get_comments:
+        description: '是否获取评论'
+        required: false
+        type: boolean
+        default: false
+      no_delay:
+        description: '是否禁用随机延迟'
+        required: false
+        type: boolean
+        default: false
+  
+  # 支持API触发 (repository_dispatch)
+  repository_dispatch:
+    types: [search-xhs, crawl-task]
 
 jobs:
   search-xhs:
@@ -45,31 +60,91 @@ jobs:
       with:
         python-version: '3.12'
         
-    - name: 安装 Node.js (for execjs)
+    - name: 安装 uv (Python包管理器)
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        
+    - name: 安装 Node.js (for jsdom)
       uses: actions/setup-node@v4
       with:
         node-version: '18'
         
-    - name: 安装 Python 依赖
+    - name: 安装依赖
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        uv sync
+        npm install
+        
+    - name: 解析参数
+      id: parse-params
+      run: |
+        # 根据触发方式解析参数
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # 手动触发，使用 inputs
+          echo "query=${{ inputs.query }}" >> $GITHUB_OUTPUT
+          echo "num=${{ inputs.num }}" >> $GITHUB_OUTPUT
+          echo "sort_type=${{ inputs.sort_type }}" >> $GITHUB_OUTPUT
+          echo "cookies=${{ inputs.cookies }}" >> $GITHUB_OUTPUT
+          echo "webhook_url=${{ inputs.webhook_url }}" >> $GITHUB_OUTPUT
+          echo "get_comments=${{ inputs.get_comments }}" >> $GITHUB_OUTPUT
+          echo "no_delay=${{ inputs.no_delay }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+          # API触发，使用 client_payload
+          echo "query=${{ github.event.client_payload.query }}" >> $GITHUB_OUTPUT
+          echo "num=${{ github.event.client_payload.num || 10 }}" >> $GITHUB_OUTPUT
+          echo "sort_type=${{ github.event.client_payload.sort_type || 0 }}" >> $GITHUB_OUTPUT
+          echo "cookies=${{ github.event.client_payload.cookies }}" >> $GITHUB_OUTPUT
+          echo "webhook_url=${{ github.event.client_payload.webhook_url }}" >> $GITHUB_OUTPUT
+          echo "get_comments=${{ github.event.client_payload.get_comments || false }}" >> $GITHUB_OUTPUT
+          echo "no_delay=${{ github.event.client_payload.no_delay || false }}" >> $GITHUB_OUTPUT
+        fi
+        
+        # 生成运行ID
+        echo "run_id=run_$(date +%Y%m%d_%H%M%S)_${{ github.run_id }}" >> $GITHUB_OUTPUT
+        
+    - name: 显示参数信息
+      run: |
+        echo "🔍 搜索关键词: ${{ steps.parse-params.outputs.query }}"
+        echo "📊 爬取数量: ${{ steps.parse-params.outputs.num }}"
+        echo "🔀 排序方式: ${{ steps.parse-params.outputs.sort_type }}"
+        echo "💬 获取评论: ${{ steps.parse-params.outputs.get_comments }}"
+        echo "⏱️ 禁用延迟: ${{ steps.parse-params.outputs.no_delay }}"
+        echo "🆔 运行ID: ${{ steps.parse-params.outputs.run_id }}"
+        echo "🌐 Webhook URL: ${{ steps.parse-params.outputs.webhook_url }}"
         
     - name: 运行爬虫
       run: |
-        python action_main.py \
-          --query "${{ inputs.query }}" \
-          --num ${{ inputs.num }} \
-          --sort-type ${{ inputs.sort_type }} \
-          --cookies "${{ inputs.cookies }}" \
-          --webhook-url "${{ inputs.webhook_url }}"
+        # 构建命令参数
+        ARGS="--query '${{ steps.parse-params.outputs.query }}' \
+              --num ${{ steps.parse-params.outputs.num }} \
+              --sort-type ${{ steps.parse-params.outputs.sort_type }} \
+              --cookies '${{ steps.parse-params.outputs.cookies }}' \
+              --run-id '${{ steps.parse-params.outputs.run_id }}'"
+        
+        # 添加可选的 webhook URL
+        if [ -n "${{ steps.parse-params.outputs.webhook_url }}" ]; then
+          ARGS="$ARGS --webhook-url '${{ steps.parse-params.outputs.webhook_url }}'"
+        fi
+        
+        # 添加可选参数
+        if [ "${{ steps.parse-params.outputs.get_comments }}" = "true" ]; then
+          ARGS="$ARGS --get-comments"
+        fi
+        
+        if [ "${{ steps.parse-params.outputs.no_delay }}" = "true" ]; then
+          ARGS="$ARGS --no-delay"
+        fi
+        
+        # 运行爬虫
+        echo "🚀 执行命令: uv run python action_main.py $ARGS"
+        eval "uv run python action_main.py $ARGS"
       env:
         PYTHONPATH: ${{ github.workspace }}
         
     - name: 上传日志 (如果失败)
       if: failure()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: spider-logs
+        name: spider-logs-${{ steps.parse-params.outputs.run_id }}
         path: logs/
         retention-days: 7 
