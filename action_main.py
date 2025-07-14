@@ -517,7 +517,7 @@ def main():
     """主函数"""
     parser = argparse.ArgumentParser(description='小红书搜索爬虫 GitHub Action (增强版)')
     parser.add_argument('--query', required=True, help='搜索关键词')
-    parser.add_argument('--num', type=int, default=10, help='爬取数量 (默认: 10)')
+    parser.add_argument('--num', type=int, default=20, help='爬取数量 (默认: 20)')
     parser.add_argument('--sort-type', type=int, default=0, 
                        help='排序方式: 0-综合排序, 1-最新, 2-最多点赞, 3-最多评论, 4-最多收藏 (默认: 0)')
     parser.add_argument('--cookies', required=True, help='小红书 cookies')
