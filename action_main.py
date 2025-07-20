@@ -175,6 +175,8 @@ def convert_note_to_xhs_format(note: dict, run_id: str) -> dict:
         "tags": extract_tags_from_note(note),
         "upload_time": upload_time.isoformat() if upload_time else None,
         "ip_location": None,  # 搜索结果中通常没有位置信息
+
+        "cover": note_card.get("cover", {}),
         
         # 互动数据
         "interact_info": parse_interact_info(interact_info),
@@ -227,13 +229,27 @@ def search_and_process_notes(
     get_comments: bool = False,
     no_delay: bool = False,
     run_id: str = None,
-    task_id: str = None
+    task_id: str = None,
+    start_page: int = 1
 ):
-    """搜索笔记并处理数据，输出符合webhook schema的格式"""
+    """搜索笔记并处理数据，输出符合webhook schema的格式
+    
+    Args:
+        query: 搜索关键词
+        num: 爬取数量
+        cookies_str: 小红书cookies
+        sort_type: 排序方式
+        webhook_url: webhook地址
+        get_comments: 是否获取评论
+        no_delay: 是否禁用延迟
+        run_id: 运行ID
+        task_id: 任务ID
+        start_page: 开始搜索的页码，默认从第1页开始
+    """
     start_time = datetime.now()
     
     try:
-        logger.info(f"🚀 开始搜索: 关键词='{query}', 数量={num}, 排序类型={sort_type}")
+        logger.info(f"🚀 开始搜索: 关键词='{query}', 数量={num}, 排序类型={sort_type}, 起始页={start_page}")
         
         # 发送开始状态
         if webhook_url:
@@ -266,7 +282,8 @@ def search_and_process_notes(
             note_range=0,  # 不限范围
             pos_distance=0,  # 不限位置
             geo=None,
-            proxies=None
+            proxies=None,
+            start_page=start_page
         )
         
         if not success:
@@ -527,6 +544,7 @@ def main():
     parser.add_argument('--debug', action='store_true', help='启用调试模式')
     parser.add_argument('--run-id', default=None, help='运行ID (可选，用于追踪)')
     parser.add_argument('--task-id', default=None, help='任务ID (可选，用于webhook回调时识别任务)')
+    parser.add_argument('--start-page', type=int, default=1, help='开始搜索的页码 (默认: 1)')
     
     args = parser.parse_args()
     
@@ -540,7 +558,7 @@ def main():
     
     logger.info("🚀 启动增强版小红书搜索爬虫...")
     logger.info(f"运行ID: {run_id}")
-    logger.info(f"参数: 关键词='{args.query}', 数量={args.num}, 排序={args.sort_type}, 获取评论={args.get_comments}")
+    logger.info(f"参数: 关键词='{args.query}', 数量={args.num}, 排序={args.sort_type}, 获取评论={args.get_comments}, 起始页={args.start_page}")
     
     if args.no_delay:
         logger.info("⚡ 已禁用随机延迟，将快速执行")
@@ -562,7 +580,8 @@ def main():
         get_comments=args.get_comments,
         no_delay=args.no_delay,
         run_id=run_id,
-        task_id=args.task_id
+        task_id=args.task_id,
+        start_page=args.start_page
     )
     
     if success:

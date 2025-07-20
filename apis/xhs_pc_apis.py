@@ -519,7 +519,7 @@ class XHS_Apis():
             msg = str(e)
         return success, msg, res_json
 
-    def search_some_note(self, query: str, require_num: int, cookies_str: str, sort_type_choice=0, note_type=0, note_time=0, note_range=0, pos_distance=0, geo="", proxies: dict = None):
+    def search_some_note(self, query: str, require_num: int, cookies_str: str, sort_type_choice=0, note_type=0, note_time=0, note_range=0, pos_distance=0, geo="", proxies: dict = None, start_page: int = 1):
         """
             指定数量搜索笔记，设置排序方式和笔记类型和笔记数量
             :param query 搜索的关键词
@@ -531,9 +531,10 @@ class XHS_Apis():
             :param note_range 笔记范围 0 不限, 1 已看过, 2 未看过, 3 已关注
             :param pos_distance 位置距离 0 不限, 1 同城, 2 附近 指定这个必须要指定 geo
             :param geo: 定位信息 经纬度
+            :param start_page: 开始搜索的页码，默认从第1页开始
             返回搜索的结果
         """
-        page = 1
+        page = start_page
         note_list = []
         try:
             while True:
